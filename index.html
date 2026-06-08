@@ -1,0 +1,2079 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WebSocket Tester</title>
+<style>
+/* ============================================================
+   CSS Variables & Reset
+   ============================================================ */
+:root {
+  --bg-primary: #1a1a2e;
+  --bg-secondary: #16213e;
+  --bg-panel: #1e2a4a;
+  --bg-input: #0f3460;
+  --bg-hover: #2a3a5e;
+  --bg-tab-active: #1e2a4a;
+  --bg-tab-inactive: #0f1a30;
+  --text-primary: #e0e6ed;
+  --text-secondary: #8892a4;
+  --text-muted: #5a6478;
+  --border-color: #2a3a5e;
+  --border-light: #3a4a6e;
+  --accent: #4fc3f7;
+  --accent-hover: #29b6f6;
+  --accent-dim: rgba(79, 195, 247, 0.15);
+  --success: #66bb6a;
+  --success-bg: rgba(102, 187, 106, 0.12);
+  --warning: #ffa726;
+  --warning-bg: rgba(255, 167, 38, 0.12);
+  --danger: #ef5350;
+  --danger-bg: rgba(239, 83, 80, 0.12);
+  --msg-sent: #1565c0;
+  --msg-sent-bg: rgba(21, 101, 192, 0.15);
+  --msg-recv: #2e7d32;
+  --msg-recv-bg: rgba(46, 125, 50, 0.15);
+  --msg-sys-bg: rgba(100, 100, 120, 0.15);
+  --shadow: 0 2px 12px rgba(0,0,0,0.3);
+  --radius: 8px;
+  --radius-sm: 4px;
+  --font-mono: 'Cascadia Code', 'Fira Code', 'Consolas', 'Courier New', monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --transition: 0.2s ease;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+input, textarea, select, button {
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--text-primary);
+}
+
+/* ============================================================
+   Scrollbar
+   ============================================================ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ============================================================
+   Layout
+   ============================================================ */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-width: 320px;
+}
+
+/* ============================================================
+   Header
+   ============================================================ */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+}
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  -webkit-app-region: no-drag;
+}
+.header-title .logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  color: var(--bg-primary);
+}
+.header-actions {
+  display: flex;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+}
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+  user-select: none;
+}
+.btn:hover { background: var(--bg-hover); border-color: var(--border-light); }
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+.btn-primary {
+  background: var(--accent);
+  color: #0d1117;
+  border-color: var(--accent);
+  font-weight: 500;
+}
+.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+.btn-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.btn-danger:hover { background: var(--danger-bg); }
+
+.btn-success {
+  border-color: var(--success);
+  color: var(--success);
+}
+.btn-success:hover { background: var(--success-bg); }
+
+.btn-sm { padding: 3px 10px; font-size: 12px; }
+.btn-icon { padding: 4px 8px; border: none; background: transparent; color: var(--text-secondary); }
+.btn-icon:hover { color: var(--text-primary); background: var(--bg-hover); border-radius: var(--radius-sm); }
+
+/* ============================================================
+   Tab Bar
+   ============================================================ */
+.tab-bar {
+  display: flex;
+  align-items: center;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+  overflow-x: auto;
+  padding: 0 4px;
+}
+.tab-bar::-webkit-scrollbar { height: 3px; }
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  min-width: 100px;
+  max-width: 200px;
+  cursor: pointer;
+  border-right: 1px solid var(--border-color);
+  background: var(--bg-tab-inactive);
+  color: var(--text-secondary);
+  transition: all var(--transition);
+  user-select: none;
+  position: relative;
+  flex-shrink: 0;
+}
+.tab:hover { background: var(--bg-hover); color: var(--text-primary); }
+.tab.active {
+  background: var(--bg-tab-active);
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--accent);
+}
+.tab .tab-status {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.tab .tab-status.disconnected { background: var(--text-muted); }
+.tab .tab-status.connecting { background: var(--warning); animation: pulse 1s infinite; }
+.tab .tab-status.connected { background: var(--success); }
+.tab .tab-status.error { background: var(--danger); }
+.tab .tab-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.tab .tab-close {
+  width: 18px; height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+}
+.tab .tab-close:hover { background: var(--danger); color: #fff; }
+
+.tab-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  border: none;
+  background: transparent;
+  flex-shrink: 0;
+  font-size: 18px;
+  transition: color var(--transition);
+}
+.tab-add:hover { color: var(--accent); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ============================================================
+   Connection Panel
+   ============================================================ */
+.conn-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+.conn-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.conn-url-wrap {
+  flex: 1;
+  min-width: 200px;
+  position: relative;
+}
+.conn-url-wrap input {
+  width: 100%;
+  padding: 7px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color var(--transition);
+}
+.conn-url-wrap input:focus { border-color: var(--accent); }
+.conn-url-wrap input:disabled { opacity: 0.6; }
+
+.conn-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.conn-status .dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+}
+.conn-status.disconnected { color: var(--text-muted); }
+.conn-status.disconnected .dot { background: var(--text-muted); }
+.conn-status.connecting { color: var(--warning); }
+.conn-status.connecting .dot { background: var(--warning); animation: pulse 1s infinite; }
+.conn-status.connected { color: var(--success); }
+.conn-status.connected .dot { background: var(--success); }
+.conn-status.error { color: var(--danger); }
+.conn-status.error .dot { background: var(--danger); }
+
+.conn-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.conn-advanced {
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0 2px;
+}
+.conn-advanced.open { display: flex; }
+.adv-toggle {
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.adv-toggle:hover { color: var(--text-primary); }
+
+.adv-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.adv-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.adv-label input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+.adv-label input[type="number"] {
+  width: 56px;
+  padding: 2px 6px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  outline: none;
+  font-size: 12px;
+}
+.adv-label input[type="text"] {
+  width: 120px;
+  padding: 2px 6px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  outline: none;
+  font-size: 12px;
+}
+.adv-label input:focus { border-color: var(--accent); }
+
+/* ============================================================
+   Main Content
+   ============================================================ */
+.main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  gap: 0;
+}
+.panel-left {
+  display: flex;
+  flex-direction: column;
+  width: 380px;
+  min-width: 260px;
+  border-right: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+.panel-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .main { flex-direction: column; }
+  .panel-left { width: 100%; min-width: 0; border-right: none; border-bottom: 1px solid var(--border-color); max-height: 40%; }
+}
+
+/* ============================================================
+   Message Input Panel
+   ============================================================ */
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+}
+.panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.msg-input-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  gap: 8px;
+  min-height: 0;
+}
+.msg-input-area textarea {
+  flex: 1;
+  min-height: 80px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  resize: vertical;
+  outline: none;
+  transition: border-color var(--transition);
+  line-height: 1.5;
+  tab-size: 2;
+}
+.msg-input-area textarea:focus { border-color: var(--accent); }
+
+.msg-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.msg-toolbar .spacer { flex: 1; }
+.send-history {
+  position: relative;
+}
+.send-history-dropdown {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  z-index: 100;
+}
+.send-history-dropdown.open { display: block; }
+.send-history-item {
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.send-history-item:hover { background: var(--bg-hover); }
+.send-history-item:last-child { border-bottom: none; }
+
+/* ============================================================
+   Message History Panel
+   ============================================================ */
+.msg-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.msg-filter-bar .filter-btn {
+  padding: 2px 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  transition: all var(--transition);
+}
+.msg-filter-bar .filter-btn:hover { color: var(--text-primary); }
+.msg-filter-bar .filter-btn.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.msg-filter-bar .pair-toggle {
+  margin-left: 4px;
+  font-weight: 500;
+}
+.msg-filter-bar .pair-toggle.active {
+  background: var(--success-bg);
+  color: var(--success);
+  border-color: var(--success);
+}
+.msg-filter-bar .search-wrap {
+  position: relative;
+  margin-left: auto;
+}
+.msg-filter-bar .search-wrap input {
+  padding: 3px 10px 3px 28px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 12px;
+  outline: none;
+  width: 160px;
+  transition: all var(--transition);
+}
+.msg-filter-bar .search-wrap input:focus { width: 220px; border-color: var(--accent); }
+.msg-filter-bar .search-wrap .search-icon {
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.msg-history {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+}
+.msg-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  flex-direction: column;
+  gap: 8px;
+}
+.msg-empty .msg-empty-icon { font-size: 40px; opacity: 0.3; }
+
+.msg-item {
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  position: relative;
+  animation: msgIn 0.15s ease;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid transparent;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.msg-item:hover {
+  border-color: var(--border-light);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+.msg-item.sent {
+  background: var(--msg-sent-bg);
+  border-left: 3px solid var(--msg-sent);
+  margin-left: 48px;
+  margin-right: 8px;
+}
+.msg-item.sent::before {
+  content: '\2192';
+  position: absolute;
+  left: -20px;
+  top: 12px;
+  color: var(--msg-sent);
+  font-size: 14px;
+  font-family: var(--font-sans);
+  opacity: 0.6;
+}
+.msg-item.received {
+  background: var(--msg-recv-bg);
+  border-left: 3px solid var(--msg-recv);
+  margin-left: 8px;
+  margin-right: 48px;
+}
+.msg-item.received::before {
+  content: '\2190';
+  position: absolute;
+  right: -20px;
+  top: 12px;
+  color: var(--msg-recv);
+  font-size: 14px;
+  font-family: var(--font-sans);
+  opacity: 0.6;
+}
+.msg-item.system {
+  background: var(--msg-sys-bg);
+  border-left: 3px solid var(--text-muted);
+  text-align: center;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-left: 48px;
+  margin-right: 48px;
+  padding: 5px 14px;
+  border-radius: 4px;
+  font-style: italic;
+}
+.msg-item.system::before { display: none; }
+.msg-item .msg-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-family: var(--font-sans);
+  padding-bottom: 5px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.msg-item .msg-time {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.msg-item .msg-label {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 10px;
+  border-radius: 8px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.msg-item.sent .msg-label { background: var(--msg-sent); color: #fff; }
+.msg-item.received .msg-label { background: var(--msg-recv); color: #fff; }
+.msg-item.system .msg-label { background: var(--text-muted); color: #fff; }
+.msg-item .msg-content {
+  padding: 2px 0;
+  overflow-x: auto;
+}
+.msg-item .msg-actions {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  display: none;
+  gap: 3px;
+  opacity: 0.7;
+  z-index: 2;
+}
+.msg-item:hover .msg-actions { display: flex; opacity: 1; }
+.msg-item .msg-actions button {
+  padding: 2px 8px;
+  font-size: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition);
+  font-family: var(--font-sans);
+}
+.msg-item .msg-actions button:hover { color: var(--text-primary); background: var(--bg-hover); }
+.msg-item .msg-highlight {
+  background: rgba(255, 167, 38, 0.35);
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+/* ============================================================
+   Paired Message View
+   ============================================================ */
+.msg-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+  background: rgba(255,255,255,0.02);
+  border-radius: 8px;
+  padding: 0;
+  margin-bottom: 4px;
+  border: 1px solid transparent;
+  transition: border-color var(--transition);
+}
+.msg-pair:hover {
+  border-color: var(--border-light);
+}
+.msg-pair .msg-item {
+  margin: 0;
+  border-radius: 0;
+  border-left-width: 3px;
+  animation: none;
+}
+.msg-pair .msg-item:first-child {
+  border-radius: 7px 7px 0 0;
+  padding-top: 10px;
+}
+.msg-pair .msg-item:last-child {
+  border-radius: 0 0 7px 7px;
+  padding-bottom: 10px;
+}
+.msg-pair .msg-item:only-child {
+  border-radius: 7px;
+}
+.msg-pair .msg-item.sent {
+  border-left-color: var(--msg-sent);
+  background: var(--msg-sent-bg);
+  margin-right: 32px;
+  margin-left: 8px;
+}
+.msg-pair .msg-item.received {
+  border-left-color: var(--msg-recv);
+  background: var(--msg-recv-bg);
+  margin-right: 8px;
+  margin-left: 32px;
+}
+.msg-pair .msg-item.sent::before { display: none; }
+.msg-pair .msg-item.received::before { display: none; }
+.msg-pair .msg-item .msg-meta {
+  margin-bottom: 3px;
+  padding-bottom: 3px;
+}
+.msg-pair .msg-item:hover {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.pair-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 12px;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  user-select: none;
+}
+.pair-divider::before,
+.pair-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255,255,255,0.06);
+}
+.pair-divider .arrow {
+  color: var(--text-secondary);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+@keyframes msgIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.msg-scroll-bottom {
+  position: sticky;
+  bottom: 4px;
+  display: none;
+  justify-content: center;
+}
+.msg-scroll-bottom button {
+  padding: 4px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  box-shadow: var(--shadow);
+}
+.msg-scroll-bottom button:hover { color: var(--text-primary); }
+
+/* ============================================================
+   Status Bar
+   ============================================================ */
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 16px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.status-bar .status-left, .status-bar .status-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ============================================================
+   Toast
+   ============================================================ */
+.toast-container {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 9999;
+}
+.toast {
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  animation: toastIn 0.25s ease;
+  max-width: 400px;
+}
+.toast.error { border-left: 3px solid var(--danger); }
+.toast.success { border-left: 3px solid var(--success); }
+.toast.info { border-left: 3px solid var(--accent); }
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* ============================================================
+   Utility
+   ============================================================ */
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <!-- Header -->
+  <header class="header">
+    <div class="header-title">
+      <div class="logo">WS</div>
+      <span>WebSocket Tester</span>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-sm" onclick="ConfigManager.exportConfig()" title="导出配置">导出</button>
+      <button class="btn btn-sm" onclick="ConfigManager.importConfig()" title="导入配置">导入</button>
+      <button class="btn btn-sm btn-danger" onclick="clearAll()" title="清空所有标签页和数据">清空</button>
+    </div>
+  </header>
+
+  <!-- Tab Bar -->
+  <div class="tab-bar" id="tabBar">
+    <!-- Tabs rendered by JS -->
+    <button class="tab-add" id="tabAddBtn" title="新建连接 (Ctrl+T)">＋</button>
+  </div>
+
+  <!-- Connection Panel -->
+  <div class="conn-panel" id="connPanel">
+    <div class="conn-row">
+      <div class="conn-url-wrap">
+        <input type="text" id="connUrl" placeholder="ws://127.0.0.1:10086 或 wss://example.com/wss" spellcheck="false" autocomplete="off">
+      </div>
+      <div class="conn-status disconnected" id="connStatus">
+        <span class="dot"></span>
+        <span class="status-text">未连接</span>
+      </div>
+      <div class="conn-actions">
+        <button class="btn btn-success btn-sm" id="btnConnect" onclick="currentTab.connect()">连接</button>
+        <button class="btn btn-danger btn-sm" id="btnDisconnect" onclick="currentTab.disconnect()" disabled>断开</button>
+      </div>
+    </div>
+    <div class="adv-toggle" onclick="toggleAdvanced()">高级选项</div>
+    <div class="conn-advanced" id="connAdvanced">
+      <div class="adv-row">
+        <label class="adv-label">
+          <input type="checkbox" id="chkAutoReconnect"> 自动重连
+          <input type="number" id="reconnectDelay" value="3" min="1" max="120"> 秒
+          <input type="number" id="reconnectMax" value="10" min="0" max="999"> 次 (0=无限)
+        </label>
+        <label class="adv-label">
+          <input type="checkbox" id="chkHeartbeat"> 心跳
+          <input type="number" id="heartbeatInterval" value="30" min="5" max="600"> 秒
+          <input type="text" id="heartbeatMsg" value='{"type":"ping"}' placeholder="心跳消息内容">
+        </label>
+        <label class="adv-label">
+          子协议: <input type="text" id="subProtocol" placeholder="可选" style="width:100px">
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main">
+    <!-- Left: Message Input -->
+    <div class="panel-left">
+      <div class="panel-header">
+        <span class="panel-title">发送消息</span>
+      </div>
+      <div class="msg-input-area">
+        <textarea id="msgInput" placeholder="输入要发送的消息..." spellcheck="false"></textarea>
+        <div class="msg-toolbar">
+          <button class="btn btn-sm" onclick="formatJSON()" title="格式化 JSON">{} JSON</button>
+          <button class="btn btn-sm" onclick="formatXML()" title="格式化 XML">&lt;/&gt; XML</button>
+          <button class="btn btn-sm" onclick="toggleHexInput()" title="切换 Hex/Binary 模式">Hex</button>
+          <div class="spacer"></div>
+          <div class="send-history">
+            <button class="btn btn-sm" onclick="toggleSendHistory()" title="发送历史">历史</button>
+            <div class="send-history-dropdown" id="sendHistoryDropdown"></div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="currentTab.sendMessage()" id="btnSend">发送</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Message History -->
+    <div class="panel-right">
+      <div class="panel-header">
+        <span class="panel-title">消息历史</span>
+        <div style="display:flex;gap:4px">
+          <button class="btn btn-sm" onclick="exportMessages()" title="导出所有消息">保存</button>
+          <button class="btn btn-sm" onclick="clearMessages()" title="清空消息">清空</button>
+        </div>
+      </div>
+      <div class="msg-filter-bar">
+        <button class="filter-btn active" data-filter="all" onclick="setFilter(this,'all')">全部</button>
+        <button class="filter-btn" data-filter="sent" onclick="setFilter(this,'sent')">已发送</button>
+        <button class="filter-btn" data-filter="received" onclick="setFilter(this,'received')">已接收</button>
+        <button class="filter-btn" data-filter="system" onclick="setFilter(this,'system')">系统</button>
+        <button class="filter-btn pair-toggle active" id="pairToggleBtn" onclick="togglePairView()" title="启用后自动配对请求与响应">配对</button>
+        <div class="search-wrap">
+          <span class="search-icon">~</span>
+          <input type="text" id="searchInput" placeholder="搜索消息..." oninput="searchMessages()">
+        </div>
+      </div>
+      <div class="msg-history" id="msgHistory">
+        <div class="msg-empty">
+          <div class="msg-empty-icon">~</div>
+          <div>暂无消息，连接服务器后开始收发消息</div>
+        </div>
+      </div>
+      <div class="msg-scroll-bottom" id="scrollBottom">
+        <button onclick="scrollToBottom()">↓ 新消息</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Bar -->
+  <footer class="status-bar">
+    <div class="status-left">
+      <span id="statusConnections">连接: 0</span>
+      <span id="statusMessages">消息: 0</span>
+    </div>
+    <div class="status-right">
+      <span>纯前端 · WebSocket 测试工具</span>
+    </div>
+  </footer>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+/* ============================================================
+   WebSocket Tester — Full Implementation
+   ============================================================ */
+
+// ============================================================
+// Utility Functions
+// ============================================================
+function $(id) { return document.getElementById(id); }
+
+function formatTime(ts) {
+  const d = new Date(ts);
+  return d.toLocaleTimeString('zh-CN', { hour12: false }) + '.' + String(d.getMilliseconds()).padStart(3, '0');
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  $('toastContainer').appendChild(el);
+  setTimeout(() => { if (el.parentNode) el.remove(); }, 4000);
+}
+
+// ============================================================
+// Message Formatter
+// ============================================================
+const MessageFormatter = {
+  formatJSON(text) {
+    try {
+      const obj = JSON.parse(text);
+      return { formatted: JSON.stringify(obj, null, 2), type: 'json' };
+    } catch { return null; }
+  },
+
+  formatXML(text) {
+    const trimmed = text.trim();
+    if (!trimmed.startsWith('<')) return null;
+    try {
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(trimmed, 'text/xml');
+      const parseErr = xml.querySelector('parsererror');
+      if (parseErr) return null;
+
+      // Split into tokens: opening tags, closing tags, self-closing, text, CDATA
+      let formatted = '';
+      let indent = 0;
+      // Normalize: put each tag on its own line
+      const normalized = trimmed
+        .replace(/>([^<]+)</g, (_, text) => '>' + text.trim() + '<')
+        .replace(/>\s+</g, '>\n<')
+        .replace(/([^>])\s*\n\s*([^<])/g, '$1$2');
+      const tokens = normalized.split(/(?=<[^>]+>)/).filter(t => t.trim());
+      for (const token of tokens) {
+        const t = token.trim();
+        if (!t) continue;
+        const isClosing = t.startsWith('</');
+        const isSelfClosing = !!t.match(/\/>$/);
+        const isDeclaration = t.startsWith('<?');
+        const isCDATA = t.startsWith('<![CDATA[');
+        const isEndTag = t.startsWith('</');
+
+        if (isEndTag) {
+          indent = Math.max(0, indent - 1);
+          formatted += '  '.repeat(indent) + t + '\n';
+        } else if (isClosing || isSelfClosing || isDeclaration || isCDATA) {
+          formatted += '  '.repeat(indent) + t + '\n';
+        } else {
+          // Opening tag
+          formatted += '  '.repeat(indent) + t + '\n';
+          indent++;
+        }
+      }
+      return { formatted: formatted.trim(), type: 'xml' };
+    } catch { return null; }
+  },
+
+  formatAuto(text) {
+    if (!text || typeof text !== 'string') return { formatted: String(text || ''), type: 'text' };
+    // Try JSON first
+    const json = this.formatJSON(text);
+    if (json) return json;
+    // Try XML
+    const xml = this.formatXML(text);
+    if (xml) return xml;
+    // Raw
+    return { formatted: text, type: 'text' };
+  },
+
+  /** Get formatted content for display */
+  getDisplayContent(text) {
+    const result = this.formatAuto(text);
+    return result.formatted;
+  }
+};
+
+// ============================================================
+// Tab / Connection Manager
+// ============================================================
+let tabIdCounter = 0;
+const tabs = [];
+let currentTabId = null;
+
+class TabConnection {
+  constructor(id, name) {
+    this.id = id;
+    this.name = name || 'Connection ' + id;
+    this.url = '';
+    this.status = 'disconnected'; // disconnected | connecting | connected | error
+    this.ws = null;
+    this.messages = [];
+    this.messageFilter = 'all';
+    this.searchQuery = '';
+    this.autoReconnect = false;
+    this.reconnectDelay = 3;
+    this.reconnectMax = 10;
+    this.reconnectAttempt = 0;
+    this.reconnectTimer = null;
+    this.heartbeat = false;
+    this.heartbeatInterval = 30;
+    this.heartbeatMsg = '{"type":"ping"}';
+    this.heartbeatTimer = null;
+    this.lastPong = Date.now();
+    this.subProtocol = '';
+    this.sendHistory = [];
+    this.isManualDisconnect = false;
+    this.isHexMode = false;
+    this.pairView = true; // paired request-response view
+  }
+
+  get el() { return document.querySelector(`.tab[data-tab-id="${this.id}"]`); }
+  get idx() { return tabs.findIndex(t => t.id === this.id); }
+
+  /* ---- Connection ---- */
+  connect() {
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+      toast('已经连接或正在连接中', 'info');
+      return;
+    }
+
+    let url = $('connUrl').value.trim();
+    if (!url) { toast('请输入 WebSocket 地址', 'error'); return; }
+    if (!url.startsWith('ws://') && !url.startsWith('wss://')) {
+      url = 'ws://' + url;
+      $('connUrl').value = url;
+    }
+
+    // Save URL to history
+    this.url = url;
+    ConfigManager.addUrlHistory(url);
+
+    this.status = 'connecting';
+    this.isManualDisconnect = false;
+    this.reconnectAttempt = 0;
+    this.updateUI();
+
+    try {
+      const protocols = $('subProtocol').value.trim() || undefined;
+      this.ws = new WebSocket(url, protocols);
+
+      this.ws.onopen = () => {
+        this.status = 'connected';
+        this.reconnectAttempt = 0;
+        this.addMessage('system', '[已连接] ' + url);
+        toast('连接成功', 'success');
+        this.updateUI();
+        if (this.heartbeat) this.startHeartbeat();
+      };
+
+      this.ws.onmessage = (evt) => {
+        this.lastPong = Date.now();
+        let content = evt.data;
+        let label = '[收到]';
+        if (typeof content === 'string') {
+          // could be text
+        } else if (content instanceof Blob) {
+          label = '[收到-Binary]';
+          const reader = new FileReader();
+          reader.onload = () => {
+            const hex = Array.from(new Uint8Array(reader.result))
+              .map(b => b.toString(16).padStart(2, '0')).join(' ');
+            this.addMessage('received', '[Binary ' + content.size + ' bytes]\n' + hex, true);
+          };
+          reader.readAsArrayBuffer(content);
+          return;
+        } else if (content instanceof ArrayBuffer) {
+          label = '[收到-Binary]';
+          const hex = Array.from(new Uint8Array(content))
+            .map(b => b.toString(16).padStart(2, '0')).join(' ');
+          this.addMessage('received', '[Binary ' + content.byteLength + ' bytes]\n' + hex, true);
+          return;
+        }
+        this.addMessage('received', content);
+      };
+
+      this.ws.onerror = (err) => {
+        this.status = 'error';
+        this.addMessage('system', '[连接错误]');
+        this.updateUI();
+      };
+
+      this.ws.onclose = (evt) => {
+        this.stopHeartbeat();
+        this.ws = null;
+        const wasConnected = this.status === 'connected' || this.status === 'connecting';
+        this.status = 'disconnected';
+        this.addMessage('system', '[关闭] code=' + evt.code + ', reason=' + (evt.reason || '无'));
+        this.updateUI();
+
+        // Auto reconnect?
+        if (!this.isManualDisconnect && this.autoReconnect && wasConnected) {
+          this.scheduleReconnect();
+        }
+      };
+
+    } catch (err) {
+      this.status = 'error';
+      this.addMessage('system', '[创建失败] ' + err.message);
+      this.updateUI();
+    }
+  }
+
+  disconnect() {
+    this.isManualDisconnect = true;
+    this.stopReconnect();
+    this.stopHeartbeat();
+    if (this.ws) {
+      try { this.ws.close(1000, '用户手动断开'); } catch {}
+      this.ws = null;
+    }
+    this.status = 'disconnected';
+    this.addMessage('system', '[手动断开]');
+    this.updateUI();
+  }
+
+  /* ---- Reconnect ---- */
+  scheduleReconnect() {
+    if (this.reconnectTimer) return;
+    if (this.reconnectMax > 0 && this.reconnectAttempt >= this.reconnectMax) {
+      this.addMessage('system', '[重连终止] 已达最大次数(' + this.reconnectMax + ')，停止重连');
+      return;
+    }
+    this.reconnectAttempt++;
+    const delay = Math.min(this.reconnectDelay * 1000 * Math.pow(1.5, this.reconnectAttempt - 1), 30000);
+    this.addMessage('system', '[重连] 将在 ' + Math.round(delay/1000) + 's 后重连 (第 ' + this.reconnectAttempt + ' 次)');
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (!this.isManualDisconnect && this.autoReconnect) {
+        this.connect();
+      }
+    }, delay);
+  }
+
+  stopReconnect() {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
+  /* ---- Heartbeat ---- */
+  startHeartbeat() {
+    this.stopHeartbeat();
+    this.lastPong = Date.now();
+    this.heartbeatTimer = setInterval(() => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        try {
+          this.ws.send(this.heartbeatMsg);
+          this.addMessage('system', '[心跳] ' + this.heartbeatMsg);
+        } catch {}
+        // Check for pong timeout (2 intervals)
+        if (Date.now() - this.lastPong > this.heartbeatInterval * 2000) {
+          this.addMessage('system', '[心跳超时] 断开连接');
+          if (this.ws) {
+            try { this.ws.close(1001, '心跳超时'); } catch {}
+          }
+        }
+      }
+    }, this.heartbeatInterval * 1000);
+  }
+
+  stopHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+  }
+
+  /* ---- Messages ---- */
+  addMessage(type, content, isFormatted = false) {
+    const msg = {
+      id: Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+      type: type,
+      content: typeof content === 'string' ? content : String(content),
+      formatted: isFormatted ? content : MessageFormatter.getDisplayContent(content),
+      raw: typeof content === 'string' ? content : String(content),
+      timestamp: Date.now(),
+      size: (typeof content === 'string' ? content : String(content)).length
+    };
+    this.messages.push(msg);
+    // Limit to 2000 messages
+    if (this.messages.length > 2000) {
+      this.messages.splice(0, this.messages.length - 2000);
+    }
+    // Render if this tab is current
+    if (this.id === currentTabId) {
+      this.renderMessages();
+      updateStatusBar();
+    }
+    // Save config
+    ConfigManager.save();
+  }
+
+  sendMessage() {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      toast('连接未打开', 'error');
+      return;
+    }
+    let text = $('msgInput').value;
+    if (!text.trim()) { toast('消息不能为空', 'info'); return; }
+
+    if (this.isHexMode) {
+      // Hex mode: convert hex string to binary
+      try {
+        const hex = text.replace(/\s+/g, '');
+        const bytes = new Uint8Array(hex.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+        this.ws.send(bytes);
+        this.addMessage('sent', '[Binary ' + bytes.length + ' bytes]\n' + text);
+      } catch (err) {
+        toast('Hex 格式错误: ' + err.message, 'error');
+        return;
+      }
+    } else {
+      this.ws.send(text);
+      this.addMessage('sent', text);
+    }
+
+    // Send history
+    if (text.length < 500) {
+      this.sendHistory = this.sendHistory.filter(s => s !== text);
+      this.sendHistory.unshift(text);
+      if (this.sendHistory.length > 20) this.sendHistory.pop();
+    }
+    if (this.id === currentTabId) {
+      updateSendHistoryUI();
+    }
+  }
+
+  /* ---- UI ---- */
+  updateUI() {
+    // Update tab
+    const tabEl = this.el;
+    if (tabEl) {
+      const statusDot = tabEl.querySelector('.tab-status');
+      statusDot.className = 'tab-status ' + this.status;
+    }
+
+    // If this is current tab, update connection panel
+    if (this.id === currentTabId) {
+      const statusEl = $('connStatus');
+      const statusText = statusEl.querySelector('.status-text');
+      statusEl.className = 'conn-status ' + this.status;
+      const labels = {
+        disconnected: '未连接',
+        connecting: '连接中…',
+        connected: '已连接',
+        error: '连接失败'
+      };
+      statusText.textContent = labels[this.status] || '未知';
+
+      $('btnConnect').disabled = (this.status === 'connected' || this.status === 'connecting');
+      $('btnDisconnect').disabled = (this.status !== 'connected');
+      $('connUrl').disabled = (this.status === 'connected' || this.status === 'connecting');
+      $('connUrl').value = this.url;
+
+      // Advanced options
+      $('chkAutoReconnect').checked = this.autoReconnect;
+      $('reconnectDelay').value = this.reconnectDelay;
+      $('reconnectMax').value = this.reconnectMax;
+      $('chkHeartbeat').checked = this.heartbeat;
+      $('heartbeatInterval').value = this.heartbeatInterval;
+      $('heartbeatMsg').value = this.heartbeatMsg;
+      $('subProtocol').value = this.subProtocol;
+
+      updateStatusBar();
+    }
+  }
+
+  /* ---- Pairing logic: group sent messages with their responses ---- */
+  getPairedMessages(filtered) {
+    const pairs = [];
+    let i = 0;
+    while (i < filtered.length) {
+      const msg = filtered[i];
+      if (msg.type === 'sent') {
+        // Look ahead for subsequent received messages
+        const received = [];
+        let j = i + 1;
+        while (j < filtered.length && filtered[j].type === 'received') {
+          received.push(filtered[j]);
+          j++;
+        }
+        if (received.length > 0) {
+          pairs.push({ type: 'pair', sent: msg, received: received });
+          i = j;
+        } else {
+          pairs.push({ type: 'single', msg: msg });
+          i++;
+        }
+      } else {
+        pairs.push({ type: 'single', msg: msg });
+        i++;
+      }
+    }
+    return pairs;
+  }
+
+  /* ---- Render a single message item HTML ---- */
+  renderMessageItem(msg, searchQ) {
+    let displayContent = msg.formatted;
+    if (searchQ && displayContent.toLowerCase().includes(searchQ)) {
+      const regex = new RegExp('(' + searchQ.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+      displayContent = displayContent.replace(regex, '<span class="msg-highlight">$1</span>');
+    }
+    const label = msg.type === 'sent' ? '发送' : (msg.type === 'received' ? '收到' : '系统');
+    const sizeColor = msg.size > 1024 ? 'var(--warning)' : 'var(--text-muted)';
+    const sizeStr = msg.size > 1024 ? (msg.size/1024).toFixed(1) + 'KB' : msg.size + 'B';
+    return '<div class="msg-item ' + msg.type + '">' +
+      '<div class="msg-meta">' +
+      '<span class="msg-label">' + label + '</span>' +
+      '<span class="msg-time">' + formatTime(msg.timestamp) + '</span>' +
+      '<span style="font-size:10px;color:' + sizeColor + ';margin-left:auto">' + sizeStr + '</span>' +
+      '</div>' +
+      '<div class="msg-content">' + escapeHtml(displayContent) + '</div>' +
+      '<div class="msg-actions">' +
+      '<button onclick="copyMessage(' + msg.id + ')" title="复制">复制</button>' +
+      '<button onclick="resendMessage(' + msg.id + ')" title="重新发送">重发</button>' +
+      '</div>' +
+      '</div>';
+  }
+
+  renderMessages() {
+    const container = $('msgHistory');
+    const filtered = this.getFilteredMessages();
+    const searchQ = this.searchQuery.trim().toLowerCase();
+
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="msg-empty"><div class="msg-empty-icon">~</div><div>' +
+        (this.messageFilter !== 'all' ? '没有匹配的消息' : '暂无消息，连接服务器后开始收发消息') + '</div></div>';
+      return;
+    }
+
+    let html = '';
+    if (this.pairView) {
+      // ---- Paired view: group sent + received ----
+      const pairs = this.getPairedMessages(filtered);
+      for (const item of pairs) {
+        if (item.type === 'single') {
+          html += this.renderMessageItem(item.msg, searchQ);
+        } else {
+          // Render paired group
+          html += '<div class="msg-pair">';
+          html += this.renderMessageItem(item.sent, searchQ);
+          html += '<div class="pair-divider"><span class="arrow">\u21B3 response</span></div>';
+          for (const recv of item.received) {
+            html += this.renderMessageItem(recv, searchQ);
+          }
+          html += '</div>';
+        }
+      }
+    } else {
+      // ---- Flat timeline view ----
+      for (const msg of filtered) {
+        html += this.renderMessageItem(msg, searchQ);
+      }
+    }
+    container.innerHTML = html;
+    if (!isScrolledUp()) scrollToBottom();
+  }
+
+  getFilteredMessages() {
+    const searchQ = this.searchQuery.trim().toLowerCase();
+    return this.messages.filter(msg => {
+      if (this.messageFilter !== 'all' && msg.type !== this.messageFilter) return false;
+      if (searchQ && !msg.content.toLowerCase().includes(searchQ) && !msg.formatted.toLowerCase().includes(searchQ)) return false;
+      return true;
+    });
+  }
+
+  /* ---- Load state from saved ---- */
+  applyState(state) {
+    if (state.url) this.url = state.url;
+    if (state.name) this.name = state.name;
+    if (state.autoReconnect !== undefined) this.autoReconnect = state.autoReconnect;
+    if (state.reconnectDelay) this.reconnectDelay = state.reconnectDelay;
+    if (state.reconnectMax) this.reconnectMax = state.reconnectMax;
+    if (state.heartbeat !== undefined) this.heartbeat = state.heartbeat;
+    if (state.heartbeatInterval) this.heartbeatInterval = state.heartbeatInterval;
+    if (state.heartbeatMsg) this.heartbeatMsg = state.heartbeatMsg;
+    if (state.subProtocol !== undefined) this.subProtocol = state.subProtocol;
+    if (state.sendHistory) this.sendHistory = state.sendHistory;
+    if (state.messages) {
+      this.messages = state.messages;
+      if (this.messages.length > 2000) this.messages = this.messages.slice(-2000);
+    }
+    if (state.isHexMode) this.isHexMode = state.isHexMode;
+    if (state.pairView !== undefined) this.pairView = state.pairView;
+  }
+
+  toState() {
+    return {
+      id: this.id,
+      name: this.name,
+      url: this.url,
+      autoReconnect: this.autoReconnect,
+      reconnectDelay: this.reconnectDelay,
+      reconnectMax: this.reconnectMax,
+      heartbeat: this.heartbeat,
+      heartbeatInterval: this.heartbeatInterval,
+      heartbeatMsg: this.heartbeatMsg,
+      subProtocol: this.subProtocol,
+      sendHistory: this.sendHistory,
+      messages: this.messages.slice(-200),
+      isHexMode: this.isHexMode,
+      pairView: this.pairView
+    };
+  }
+}
+
+// ============================================================
+// Current Tab Proxy
+// ============================================================
+const currentTab = new Proxy({}, {
+  get(target, prop) {
+    const tab = tabs.find(t => t.id === currentTabId);
+    if (!tab) {
+      // Return a no-op function for methods, undefined for properties
+      if (prop === 'sendMessage' || prop === 'connect' || prop === 'disconnect') {
+        return () => { toast('没有活动的标签页', 'error'); };
+      }
+      return undefined;
+    }
+    if (typeof tab[prop] === 'function') {
+      return tab[prop].bind(tab);
+    }
+    return tab[prop];
+  },
+  set(target, prop, value) {
+    const tab = tabs.find(t => t.id === currentTabId);
+    if (tab) tab[prop] = value;
+    return true;
+  }
+});
+
+// ============================================================
+// Tab Management Functions
+// ============================================================
+function createTab(name) {
+  tabIdCounter++;
+  const tab = new TabConnection(tabIdCounter, name || 'Connection ' + tabIdCounter);
+  tabs.push(tab);
+  renderTabs();
+  activateTab(tab.id);
+  ConfigManager.save();
+  updateStatusBar();
+  return tab;
+}
+
+function closeTab(id) {
+  if (tabs.length <= 1) { toast('至少保留一个标签页', 'info'); return; }
+  const tab = tabs.find(t => t.id === id);
+  if (tab) {
+    tab.disconnect();
+    tab.stopReconnect();
+    tab.stopHeartbeat();
+  }
+  const idx = tabs.findIndex(t => t.id === id);
+  tabs.splice(idx, 1);
+  renderTabs();
+  if (currentTabId === id) {
+    const nextTab = tabs[Math.min(idx, tabs.length - 1)];
+    if (nextTab) activateTab(nextTab.id);
+  }
+  ConfigManager.save();
+  updateStatusBar();
+}
+
+function activateTab(id) {
+  currentTabId = id;
+  // Update tab active states
+  document.querySelectorAll('.tab').forEach(el => {
+    el.classList.toggle('active', parseInt(el.dataset.tabId) === id);
+  });
+  // Update connection panel
+  const tab = tabs.find(t => t.id === id);
+  if (tab) {
+    tab.updateUI();
+    tab.renderMessages();
+    updateSendHistoryUI();
+    $('msgInput').value = '';
+    // Sync pair toggle button
+    const btn = $('pairToggleBtn');
+    btn.classList.toggle('active', tab.pairView);
+    btn.title = tab.pairView ? '启用后自动配对请求与响应' : '关闭配对模式，以时间线模式显示';
+  }
+}
+
+function renderTabs() {
+  const bar = $('tabBar');
+  // Remove existing tabs (keep add button)
+  bar.querySelectorAll('.tab').forEach(el => el.remove());
+
+  for (const tab of tabs) {
+    const el = document.createElement('div');
+    el.className = 'tab' + (tab.id === currentTabId ? ' active' : '');
+    el.dataset.tabId = tab.id;
+    el.innerHTML =
+      '<div class="tab-status ' + tab.status + '"></div>' +
+      '<span class="tab-name" title="双击重命名">' + escapeHtml(tab.name) + '</span>' +
+      '<button class="tab-close" onclick="event.stopPropagation();closeTab(' + tab.id + ')" title="关闭">×</button>';
+    el.addEventListener('click', () => activateTab(tab.id));
+    el.addEventListener('dblclick', () => renameTab(tab.id));
+    bar.insertBefore(el, $('tabAddBtn'));
+  }
+}
+
+function renameTab(id) {
+  const tab = tabs.find(t => t.id === id);
+  if (!tab) return;
+  const nameEl = tab.el.querySelector('.tab-name');
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = tab.name;
+  input.style.cssText = 'background:var(--bg-input);border:1px solid var(--accent);border-radius:3px;padding:1px 4px;color:var(--text-primary);font-size:13px;width:100%';
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+  input.onblur = () => {
+    const newName = input.value.trim() || tab.name;
+    tab.name = newName;
+    renderTabs();
+    activateTab(tab.id);
+    ConfigManager.save();
+  };
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') input.blur();
+    if (e.key === 'Escape') { input.value = tab.name; input.blur(); }
+  };
+}
+
+// ============================================================
+// Send History
+// ============================================================
+function toggleSendHistory() {
+  const dd = $('sendHistoryDropdown');
+  dd.classList.toggle('open');
+}
+
+function updateSendHistoryUI() {
+  const dd = $('sendHistoryDropdown');
+  const tab = tabs.find(t => t.id === currentTabId);
+  if (!tab || tab.sendHistory.length === 0) {
+    dd.innerHTML = '<div class="send-history-item" style="color:var(--text-muted);text-align:center">暂无历史</div>';
+    return;
+  }
+  dd.innerHTML = tab.sendHistory.map(msg =>
+    '<div class="send-history-item" onclick="useSendHistory(this.textContent);document.getElementById(\'sendHistoryDropdown\').classList.remove(\'open\')">' + escapeHtml(msg) + '</div>'
+  ).join('');
+}
+
+function useSendHistory(msg) {
+  $('msgInput').value = msg;
+}
+
+// Close send history dropdown on click outside
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.send-history')) {
+    $('sendHistoryDropdown').classList.remove('open');
+  }
+});
+
+// ============================================================
+// Message Formatting Functions
+// ============================================================
+function formatJSON() {
+  const ta = $('msgInput');
+  const result = MessageFormatter.formatJSON(ta.value);
+  if (result) {
+    ta.value = result.formatted;
+  } else {
+    toast('JSON 格式无效', 'error');
+  }
+}
+
+function formatXML() {
+  const ta = $('msgInput');
+  const result = MessageFormatter.formatXML(ta.value);
+  if (result) {
+    ta.value = result.formatted;
+  } else {
+    toast('XML 格式无效', 'error');
+  }
+}
+
+function toggleHexInput() {
+  const tab = tabs.find(t => t.id === currentTabId);
+  if (!tab) return;
+  tab.isHexMode = !tab.isHexMode;
+  const ta = $('msgInput');
+  if (tab.isHexMode) {
+    ta.placeholder = '输入 Hex 数据 (如: 48 65 6c 6c 6f)';
+    toast('Hex 模式已开启', 'info');
+  } else {
+    ta.placeholder = '输入要发送的消息...';
+    toast('文本模式已切换', 'info');
+  }
+}
+
+// ============================================================
+// Message History Functions
+// ============================================================
+function setFilter(btn, filter) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const tab = tabs.find(t => t.id === currentTabId);
+  if (tab) {
+    tab.messageFilter = filter;
+    tab.renderMessages();
+  }
+}
+
+function searchMessages() {
+  const q = $('searchInput').value;
+  const tab = tabs.find(t => t.id === currentTabId);
+  if (tab) {
+    tab.searchQuery = q;
+    tab.renderMessages();
+  }
+}
+
+function togglePairView() {
+  const tab = tabs.find(t => t.id === currentTabId);
+  if (!tab) return;
+  tab.pairView = !tab.pairView;
+  const btn = $('pairToggleBtn');
+  btn.classList.toggle('active', tab.pairView);
+  btn.title = tab.pairView ? '启用后自动配对请求与响应' : '关闭配对模式，以时间线模式显示';
+  tab.renderMessages();
+  ConfigManager.save();
+}
+
+function isScrolledUp() {
+  const container = $('msgHistory');
+  return container.scrollHeight - container.scrollTop - container.clientHeight > 60;
+}
+
+function scrollToBottom() {
+  const container = $('msgHistory');
+  container.scrollTop = container.scrollHeight;
+  $('scrollBottom').style.display = 'none';
+}
+
+// Detect scroll
+$('msgHistory').addEventListener('scroll', () => {
+  $('scrollBottom').style.display = isScrolledUp() ? 'flex' : 'none';
+});
+
+function copyMessage(id) {
+  const tab = tabs.find(t => t.id === currentTabId);
+  if (!tab) return;
+  const msg = tab.messages.find(m => m.id === id);
+  if (!msg) return;
+  navigator.clipboard.writeText(msg.content).then(() => {
+    toast('已复制到剪贴板', 'success');
+  }).catch(() => {
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = msg.content;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    toast('已复制到剪贴板', 'success');
+  });
+}
+
+function resendMessage(id) {
+  const tab = tabs.find(t => t.id === currentTabId);
+  if (!tab) return;
+  const msg = tab.messages.find(m => m.id === id);
+  if (!msg) return;
+  if (msg.type !== 'sent') {
+    // Put in input box
+    $('msgInput').value = msg.content;
+    toast('消息已放入输入框', 'info');
+  } else {
+    // Resend
+    $('msgInput').value = msg.content;
+    tab.sendMessage();
+  }
+}
+
+function clearMessages() {
+  const tab = tabs.find(t => t.id === currentTabId);
+  if (!tab) return;
+  if (tab.messages.length === 0) return;
+  if (confirm('确定清空所有消息记录？')) {
+    tab.messages = [];
+    tab.renderMessages();
+    updateStatusBar();
+    ConfigManager.save();
+  }
+}
+
+function clearAll() {
+  if (!confirm('确定清空所有标签页和数据？此操作不可撤销！')) return;
+  for (const tab of tabs) {
+    tab.disconnect();
+    tab.stopReconnect();
+    tab.stopHeartbeat();
+  }
+  tabs.length = 0;
+  tabIdCounter = 0;
+  const firstTab = createTab('Connection 1');
+  // Clear URL history
+  ConfigManager.data.urlHistory = [];
+  ConfigManager.save();
+  toast('已清空全部数据', 'info');
+}
+
+function exportMessages() {
+  const tab = tabs.find(t => t.id === currentTabId);
+  if (!tab || tab.messages.length === 0) { toast('没有消息可导出', 'info'); return; }
+  const data = {
+    url: tab.url,
+    exportTime: new Date().toISOString(),
+    total: tab.messages.length,
+    messages: tab.messages
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'websocket-messages-' + formatTime(Date.now()).replace(/[:.]/g, '-') + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('消息已导出', 'success');
+}
+
+// ============================================================
+// Advanced Options
+// ============================================================
+function toggleAdvanced() {
+  const panel = $('connAdvanced');
+  const toggle = panel.previousElementSibling;
+  panel.classList.toggle('open');
+  toggle.textContent = panel.classList.contains('open') ? '收起高级选项' : '展开高级选项';
+}
+
+// Sync advanced options to current tab
+function syncAdvancedOptions() {
+  const tab = tabs.find(t => t.id === currentTabId);
+  if (!tab) return;
+  tab.autoReconnect = $('chkAutoReconnect').checked;
+  tab.reconnectDelay = parseInt($('reconnectDelay').value) || 3;
+  tab.reconnectMax = parseInt($('reconnectMax').value) || 10;
+  tab.heartbeat = $('chkHeartbeat').checked;
+  tab.heartbeatInterval = parseInt($('heartbeatInterval').value) || 30;
+  tab.heartbeatMsg = $('heartbeatMsg').value || '{"type":"ping"}';
+  tab.subProtocol = $('subProtocol').value.trim();
+  ConfigManager.save();
+}
+
+// Listen to advanced option changes
+document.querySelectorAll('.adv-label input').forEach(el => {
+  el.addEventListener('change', syncAdvancedOptions);
+  el.addEventListener('input', syncAdvancedOptions);
+});
+
+// ============================================================
+// Keyboard Shortcuts
+// ============================================================
+document.addEventListener('keydown', (e) => {
+  // Ctrl+Enter or Ctrl+Shift+Enter to send
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    const tab = tabs.find(t => t.id === currentTabId);
+    if (tab) tab.sendMessage();
+  }
+  // Ctrl+T new tab
+  if ((e.ctrlKey || e.metaKey) && e.key === 't') {
+    e.preventDefault();
+    createTab();
+  }
+  // Ctrl+W close tab
+  if ((e.ctrlKey || e.metaKey) && e.key === 'w') {
+    e.preventDefault();
+    if (currentTabId) closeTab(currentTabId);
+  }
+});
+
+// Enter in URL input to connect
+$('connUrl').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const tab = tabs.find(t => t.id === currentTabId);
+    if (tab) tab.connect();
+  }
+});
+
+// ============================================================
+// Status Bar
+// ============================================================
+function updateStatusBar() {
+  const connected = tabs.filter(t => t.status === 'connected').length;
+  const total = tabs.length;
+  const totalMsgs = tabs.reduce((sum, t) => sum + t.messages.length, 0);
+  $('statusConnections').textContent = '连接: ' + connected + '/' + total;
+  $('statusMessages').textContent = '消息: ' + totalMsgs;
+}
+
+// ============================================================
+// Configuration Manager (localStorage)
+// ============================================================
+const ConfigManager = {
+  STORAGE_KEY: 'ws_tester_config',
+  data: {
+    urlHistory: [],
+    tabs: [],
+    activeTabId: null
+  },
+
+  init() {
+    try {
+      const saved = localStorage.getItem(this.STORAGE_KEY);
+      if (saved) {
+        this.data = JSON.parse(saved);
+      }
+    } catch {}
+    // Restore tabs
+    if (this.data.tabs && this.data.tabs.length > 0) {
+      for (const state of this.data.tabs) {
+        const tab = new TabConnection(state.id || ++tabIdCounter, state.name);
+        tab.applyState(state);
+        tabs.push(tab);
+      }
+      // Ensure currentTabId is valid
+      if (this.data.activeTabId && tabs.some(t => t.id === this.data.activeTabId)) {
+        currentTabId = this.data.activeTabId;
+      } else {
+        currentTabId = tabs[0].id;
+      }
+    } else {
+      // Default tab
+      const tab = createTab('Connection 1');
+    }
+
+    renderTabs();
+    activateTab(currentTabId);
+    updateStatusBar();
+
+    // Restore URL history
+    updateURLHistoryUI();
+  },
+
+  save() {
+    this.data.tabs = tabs.map(t => t.toState());
+    this.data.activeTabId = currentTabId;
+    this.data.urlHistory = this.data.urlHistory || [];
+    try {
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.data));
+    } catch {}
+  },
+
+  addUrlHistory(url) {
+    if (!this.data.urlHistory) this.data.urlHistory = [];
+    this.data.urlHistory = this.data.urlHistory.filter(u => u !== url);
+    this.data.urlHistory.unshift(url);
+    if (this.data.urlHistory.length > 20) this.data.urlHistory = this.data.urlHistory.slice(0, 20);
+    this.save();
+    updateURLHistoryUI();
+  },
+
+  exportConfig() {
+    const data = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      tabs: tabs.map(t => t.toState()),
+      activeTabId: currentTabId,
+      urlHistory: this.data.urlHistory
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'ws-tester-config.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('配置已导出', 'success');
+  },
+
+  importConfig() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const data = JSON.parse(ev.target.result);
+          if (!data.tabs || !Array.isArray(data.tabs)) {
+            toast('配置文件格式无效', 'error');
+            return;
+          }
+          // Close all current tabs
+          for (const tab of tabs) {
+            tab.disconnect();
+            tab.stopReconnect();
+            tab.stopHeartbeat();
+          }
+          tabs.length = 0;
+          tabIdCounter = 0;
+
+          for (const state of data.tabs) {
+            const tab = new TabConnection(state.id || ++tabIdCounter, state.name);
+            tab.applyState(state);
+            tabs.push(tab);
+          }
+          currentTabId = data.activeTabId && tabs.some(t => t.id === data.activeTabId)
+            ? data.activeTabId : tabs[0].id;
+          if (data.urlHistory) this.data.urlHistory = data.urlHistory;
+
+          renderTabs();
+          activateTab(currentTabId);
+          updateStatusBar();
+          updateURLHistoryUI();
+          this.save();
+          toast('配置已导入，共 ' + tabs.length + ' 个标签页', 'success');
+        } catch (err) {
+          toast('导入失败: ' + err.message, 'error');
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  }
+};
+
+// ============================================================
+// URL History (datalist)
+// ============================================================
+function updateURLHistoryUI() {
+  const urls = ConfigManager.data.urlHistory || [];
+  let dl = document.querySelector('#urlHistoryList');
+  if (!dl) {
+    dl = document.createElement('datalist');
+    dl.id = 'urlHistoryList';
+    document.body.appendChild(dl);
+    $('connUrl').setAttribute('list', 'urlHistoryList');
+  }
+  dl.innerHTML = urls.map(u => '<option value="' + escapeHtml(u) + '">').join('');
+}
+
+// ============================================================
+// Init
+// ============================================================
+ConfigManager.init();
+
+// Handle window unload - save state
+window.addEventListener('beforeunload', () => {
+  ConfigManager.save();
+});
+
+// Handle visibility change - reconnect checks
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    for (const tab of tabs) {
+      if (tab.status === 'connected' && tab.ws && tab.ws.readyState !== WebSocket.OPEN) {
+        tab.status = 'disconnected';
+        tab.updateUI();
+        if (tab.autoReconnect) tab.scheduleReconnect();
+      }
+    }
+  }
+});
+
+console.log('? WebSocket Tester loaded');
+console.log('? 快捷键: Ctrl+Enter 发送 | Ctrl+T 新建标签 | Ctrl+W 关闭标签');
+</script>
+
+</body>
+</html>
