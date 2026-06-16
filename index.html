@@ -495,7 +495,9 @@ input, textarea, select, button {
   flex-shrink: 0;
   flex-wrap: wrap;
 }
-.msg-filter-bar .filter-btn {
+.msg-filter-bar .pair-toggle {
+  margin-left: 4px;
+  font-weight: 500;
   padding: 2px 10px;
   border: 1px solid transparent;
   border-radius: 10px;
@@ -505,16 +507,7 @@ input, textarea, select, button {
   font-size: 12px;
   transition: all var(--transition);
 }
-.msg-filter-bar .filter-btn:hover { color: var(--text-primary); }
-.msg-filter-bar .filter-btn.active {
-  background: var(--accent-dim);
-  color: var(--accent);
-  border-color: var(--accent);
-}
-.msg-filter-bar .pair-toggle {
-  margin-left: 4px;
-  font-weight: 500;
-}
+.msg-filter-bar .pair-toggle:hover { color: var(--text-primary); }
 .msg-filter-bar .pair-toggle.active {
   background: var(--success-bg);
   color: var(--success);
@@ -577,8 +570,6 @@ input, textarea, select, button {
   animation: msgIn 0.15s ease;
   white-space: pre-wrap;
   word-break: break-all;
-  max-height: 400px;
-  overflow-y: auto;
   border: 1px solid transparent;
   transition: border-color var(--transition), box-shadow var(--transition);
 }
@@ -942,11 +933,7 @@ input, textarea, select, button {
         </div>
       </div>
       <div class="msg-filter-bar">
-        <button class="filter-btn active" data-filter="all" onclick="setFilter(this,'all')">全部</button>
-        <button class="filter-btn" data-filter="sent" onclick="setFilter(this,'sent')">已发送</button>
-        <button class="filter-btn" data-filter="received" onclick="setFilter(this,'received')">已接收</button>
-        <button class="filter-btn" data-filter="system" onclick="setFilter(this,'system')">系统</button>
-        <button class="filter-btn pair-toggle active" id="pairToggleBtn" onclick="togglePairView()" title="启用后自动配对请求与响应">配对</button>
+        <button class="pair-toggle active" id="pairToggleBtn" onclick="togglePairView()" title="请求与响应配对显示">配对视图</button>
         <div class="search-wrap">
           <span class="search-icon">~</span>
           <input type="text" id="searchInput" placeholder="搜索消息..." oninput="searchMessages()">
@@ -1027,35 +1014,51 @@ const MessageFormatter = {
       const xml = parser.parseFromString(trimmed, 'text/xml');
       const parseErr = xml.querySelector('parsererror');
       if (parseErr) return null;
-
-      // Split into tokens: opening tags, closing tags, self-closing, text, CDATA
       let formatted = '';
-      let indent = 0;
-      // Normalize: put each tag on its own line
-      const normalized = trimmed
-        .replace(/>([^<]+)</g, (_, text) => '>' + text.trim() + '<')
-        .replace(/>\s+</g, '>\n<')
-        .replace(/([^>])\s*\n\s*([^<])/g, '$1$2');
-      const tokens = normalized.split(/(?=<[^>]+>)/).filter(t => t.trim());
-      for (const token of tokens) {
-        const t = token.trim();
-        if (!t) continue;
-        const isClosing = t.startsWith('</');
-        const isSelfClosing = !!t.match(/\/>$/);
-        const isDeclaration = t.startsWith('<?');
-        const isCDATA = t.startsWith('<![CDATA[');
-        const isEndTag = t.startsWith('</');
-
-        if (isEndTag) {
-          indent = Math.max(0, indent - 1);
-          formatted += '  '.repeat(indent) + t + '\n';
-        } else if (isClosing || isSelfClosing || isDeclaration || isCDATA) {
-          formatted += '  '.repeat(indent) + t + '\n';
-        } else {
-          // Opening tag
-          formatted += '  '.repeat(indent) + t + '\n';
-          indent++;
+      const walk = (node, indent) => {
+        const pad = '  '.repeat(indent);
+        if (node.nodeType === Node.TEXT_NODE) {
+          const t = node.textContent.trim();
+          if (t) formatted += pad + t + '\n';
+          return;
         }
+        if (node.nodeType === Node.CDATA_SECTION_NODE) {
+          formatted += pad + '<![CDATA[' + node.textContent + ']]>\n';
+          return;
+        }
+        if (node.nodeType === Node.COMMENT_NODE) {
+          formatted += pad + '<!--' + node.textContent + '-->\n';
+          return;
+        }
+        if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+        // Build opening tag
+        let tag = '<' + node.nodeName;
+        if (node.attributes) {
+          for (const attr of node.attributes) {
+            tag += ' ' + attr.name + '="' + attr.value + '"';
+          }
+        }
+        const children = Array.from(node.childNodes);
+        if (children.length === 0) {
+          formatted += pad + tag + ' />\n';
+        } else {
+          const hasOnlyText = children.length === 1 && children[0].nodeType === Node.TEXT_NODE;
+          if (hasOnlyText) {
+            // Inline: <tag>text</tag>
+            const t = children[0].textContent.trim();
+            formatted += pad + tag + '>' + t + '</' + node.nodeName + '>\n';
+          } else {
+            formatted += pad + tag + '>\n';
+            for (const child of children) {
+              walk(child, indent + 1);
+            }
+            formatted += pad + '</' + node.nodeName + '>\n';
+          }
+        }
+      };
+      for (const child of Array.from(xml.childNodes)) {
+        walk(child, 0);
       }
       return { formatted: formatted.trim(), type: 'xml' };
     } catch { return null; }
@@ -1095,7 +1098,6 @@ class TabConnection {
     this.status = 'disconnected'; // disconnected | connecting | connected | error
     this.ws = null;
     this.messages = [];
-    this.messageFilter = 'all';
     this.searchQuery = '';
     this.autoReconnect = false;
     this.reconnectDelay = 3;
@@ -1432,7 +1434,7 @@ class TabConnection {
 
     if (filtered.length === 0) {
       container.innerHTML = '<div class="msg-empty"><div class="msg-empty-icon">~</div><div>' +
-        (this.messageFilter !== 'all' ? '没有匹配的消息' : '暂无消息，连接服务器后开始收发消息') + '</div></div>';
+        (searchQ ? '没有匹配的消息' : '暂无消息，连接服务器后开始收发消息') + '</div></div>';
       return;
     }
 
@@ -1466,10 +1468,11 @@ class TabConnection {
 
   getFilteredMessages() {
     const searchQ = this.searchQuery.trim().toLowerCase();
+    if (!searchQ) return this.messages;
     return this.messages.filter(msg => {
-      if (this.messageFilter !== 'all' && msg.type !== this.messageFilter) return false;
-      if (searchQ && !msg.content.toLowerCase().includes(searchQ) && !msg.formatted.toLowerCase().includes(searchQ)) return false;
-      return true;
+      if (msg.content.toLowerCase().includes(searchQ)) return true;
+      if (msg.formatted.toLowerCase().includes(searchQ)) return true;
+      return false;
     });
   }
 
@@ -1705,16 +1708,6 @@ function toggleHexInput() {
 // ============================================================
 // Message History Functions
 // ============================================================
-function setFilter(btn, filter) {
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  const tab = tabs.find(t => t.id === currentTabId);
-  if (tab) {
-    tab.messageFilter = filter;
-    tab.renderMessages();
-  }
-}
-
 function searchMessages() {
   const q = $('searchInput').value;
   const tab = tabs.find(t => t.id === currentTabId);
@@ -1730,7 +1723,7 @@ function togglePairView() {
   tab.pairView = !tab.pairView;
   const btn = $('pairToggleBtn');
   btn.classList.toggle('active', tab.pairView);
-  btn.title = tab.pairView ? '启用后自动配对请求与响应' : '关闭配对模式，以时间线模式显示';
+  btn.title = tab.pairView ? '配对视图：请求与响应自动分组' : '时间线视图：消息平铺显示';
   tab.renderMessages();
   ConfigManager.save();
 }
@@ -1866,6 +1859,9 @@ document.querySelectorAll('.adv-label input').forEach(el => {
 // ============================================================
 // Keyboard Shortcuts
 // ============================================================
+// Tab add button click
+$('tabAddBtn').addEventListener('click', () => createTab());
+
 document.addEventListener('keydown', (e) => {
   // Ctrl+Enter or Ctrl+Shift+Enter to send
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -1928,6 +1924,10 @@ const ConfigManager = {
         const tab = new TabConnection(state.id || ++tabIdCounter, state.name);
         tab.applyState(state);
         tabs.push(tab);
+      }
+      // Sync tabIdCounter to avoid ID collision with restored tabs
+      if (tabs.length > 0) {
+        tabIdCounter = Math.max(tabIdCounter, ...tabs.map(t => t.id));
       }
       // Ensure currentTabId is valid
       if (this.data.activeTabId && tabs.some(t => t.id === this.data.activeTabId)) {
