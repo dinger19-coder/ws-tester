@@ -651,6 +651,8 @@ input, textarea, select, button {
 .msg-item .msg-content {
   padding: 2px 0;
   overflow-x: auto;
+  white-space: pre-wrap;        /* 保留原始换行与缩进 */
+  word-break: break-word;
 }
 .msg-item .msg-actions {
   position: absolute;
@@ -1043,11 +1045,22 @@ const MessageFormatter = {
         if (children.length === 0) {
           formatted += pad + tag + ' />\n';
         } else {
-          const hasOnlyText = children.length === 1 && children[0].nodeType === Node.TEXT_NODE;
+          // 全部为文本/CDATA 节点时按 inline 输出，避免 <user_id>test001\n</user_id> 强制换行
+          const significant = children.filter(c =>
+            c.nodeType === Node.ELEMENT_NODE || c.nodeType === Node.CDATA_SECTION_NODE ||
+            (c.nodeType === Node.TEXT_NODE && c.textContent.trim() !== '') ||
+            c.nodeType === Node.COMMENT_NODE
+          );
+          const hasOnlyText = significant.length > 0 && significant.every(c =>
+            c.nodeType === Node.TEXT_NODE || c.nodeType === Node.CDATA_SECTION_NODE
+          );
           if (hasOnlyText) {
-            // Inline: <tag>text</tag>
-            const t = children[0].textContent.trim();
-            formatted += pad + tag + '>' + t + '</' + node.nodeName + '>\n';
+            // Inline: <tag>text</tag>，CDATA 原样保留
+            const inner = children.map(c => {
+              if (c.nodeType === Node.CDATA_SECTION_NODE) return '<![CDATA[' + c.textContent + ']]>';
+              return c.textContent.trim();
+            }).join('');
+            formatted += pad + tag + '>' + inner + '</' + node.nodeName + '>\n';
           } else {
             formatted += pad + tag + '>\n';
             for (const child of children) {
@@ -1488,8 +1501,20 @@ class TabConnection {
     if (state.heartbeatMsg) this.heartbeatMsg = state.heartbeatMsg;
     if (state.subProtocol !== undefined) this.subProtocol = state.subProtocol;
     if (state.sendHistory) this.sendHistory = state.sendHistory;
-    if (state.messages) {
-      this.messages = state.messages;
+    // 恢复消息：兼容旧字段(content/formatted/raw)与精简字段(raw)
+    if (Array.isArray(state.messages) && state.messages.length > 0) {
+      this.messages = state.messages.map(m => {
+        const raw = m.raw !== undefined ? m.raw : (m.content !== undefined ? m.content : '');
+        return {
+          id: m.id || (Date.now() + '_' + Math.random().toString(36).slice(2, 6)),
+          type: m.type || 'sent',
+          content: raw,
+          formatted: m.formatted !== undefined ? m.formatted : MessageFormatter.getDisplayContent(raw),
+          raw: raw,
+          timestamp: m.timestamp || Date.now(),
+          size: m.size !== undefined ? m.size : raw.length
+        };
+      });
       if (this.messages.length > 2000) this.messages = this.messages.slice(-2000);
     }
     if (state.isHexMode) this.isHexMode = state.isHexMode;
@@ -1509,7 +1534,14 @@ class TabConnection {
       heartbeatMsg: this.heartbeatMsg,
       subProtocol: this.subProtocol,
       sendHistory: this.sendHistory,
-      messages: this.messages.slice(-200),
+      // 精简消息字段：仅保留原始报文与必要元数据，去掉与 raw 重复的 content 和可重算的 formatted
+      messages: this.messages.slice(-200).map(m => ({
+        id: m.id,
+        type: m.type,
+        raw: m.raw,
+        timestamp: m.timestamp,
+        size: m.size
+      })),
       isHexMode: this.isHexMode,
       pairView: this.pairView
     };
